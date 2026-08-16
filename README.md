@@ -11,6 +11,43 @@ No guessing. No confidence percentages. No "probably safe to delete".
 
 ---
 
+## Before you trust a result
+
+This skill is carried out by an intelligence, not by a compiler. That is where
+its strength comes from: it reads code the way a person does and sees links no
+static tool sees. It is also where the risk comes from.
+
+**The same skill, run by two different intelligences over the same project, can
+produce two different answers.** That is not a worry, it is a measurement. On
+the project this skill was built against, two runs of the same five steps ended
+with 121 unneeded statements and with 55. The whole difference came from one
+decision at step 2: one of the runs decided, from its own knowledge of how
+browsers work, that every style rule is an entry point. Nothing in this skill
+says that. The rule was invented, the run was confident, and the finished report
+looked exactly as sound as the correct one.
+
+An intelligence that reasons from outside knowledge instead of from the
+definitions produces a wrong answer that reads like a right one. There is no
+way to tell the two apart by looking at the report.
+
+So, before you act on anything this skill produces:
+
+- **Run the answer key first.** It takes seconds and it catches an invented
+  classification before a single conclusion is drawn. See below.
+- **Open `review.md` and the database.** Every decision is written down with the
+  file and the lines it came from. A link that cannot be traced back to a line
+  of code was invented.
+- **Check the entry points.** They decide everything. A whole tree declared dead
+  usually means one entry point was missed; a suspiciously empty result usually
+  means far too many were declared.
+- **Delete nothing on the strength of one run.** The second kind is a list of
+  candidates to look at with your own eyes, never a delete command.
+
+The definitions in SKILL.md are the only authority. Not the model's general
+knowledge, not the internet, not the documentation of your framework.
+
+---
+
 ## What makes it different
 
 ### It works one statement at a time
