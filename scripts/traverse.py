@@ -11,31 +11,38 @@ Which ids go in and which go out is decided by the intelligence.
     traverse.py record --analysis <dir> --id N --inputs "1,2" --outputs "5,7"
                        [--unresolved]
     traverse.py report --analysis <dir>
+
+Every line below carries a comment. Nothing here can halt the analysis. The
+refusals are three, they all fire before anything is written, and each one names
+what to do: no database, no statement list, no entry point list; an id that is
+not in the database; a statement recorded twice. A statement that cannot be
+understood is not a refusal - it is recorded with --unresolved and the work
+goes on.
 """
 
-import argparse
-import json
-import os
-import sqlite3
-import sys
+import argparse                                   # reads the command line
+import json                                       # the answers are JSON lines
+import os                                         # paths and checks
+import sqlite3                                    # the database
+import sys                                        # exit code and stdout
 
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8")
-    sys.stderr.reconfigure(encoding="utf-8")
+if hasattr(sys.stdout, "reconfigure"):            # modern Python has this
+    sys.stdout.reconfigure(encoding="utf-8")      # force UTF-8 out
+    sys.stderr.reconfigure(encoding="utf-8")      # statement text may hold any alphabet
 
-STATEMENTS = "statements.txt"
-ENTRY_POINTS = "entry-points.txt"
-DATABASE = "analysis.db"
+STATEMENTS = "statements.txt"                     # made by step 1
+ENTRY_POINTS = "entry-points.txt"                 # made by step 2
+DATABASE = "analysis.db"                          # made by step 3
 
 WORKING_TABLES = """
 CREATE TABLE IF NOT EXISTS traversal_state (
-    key   TEXT PRIMARY KEY,
-    value TEXT
+    key   TEXT PRIMARY KEY,                       -- only one key is used: 'next'
+    value TEXT                                    -- the id the path continues to
 );
 
 CREATE TABLE IF NOT EXISTS line_index (
-    id     INTEGER PRIMARY KEY,
-    offset INTEGER
+    id     INTEGER PRIMARY KEY,                   -- the id of a statement
+    offset INTEGER                                -- where its line begins in the file
 );
 """
 
@@ -43,85 +50,92 @@ CREATE TABLE IF NOT EXISTS line_index (
 # --------------------------------------------------------------------------
 
 def open_analysis(analysis):
-    analysis = os.path.abspath(analysis)
-    database_path = os.path.join(analysis, DATABASE)
-    if not os.path.isfile(database_path):
+    """Opens the database and makes sure the two working tables exist."""
+    analysis = os.path.abspath(analysis)                   # full path only
+    database_path = os.path.join(analysis, DATABASE)       # where the database is
+    if not os.path.isfile(database_path):                  # step 3 has to be done first
         raise SystemExit("No database: " + database_path)
-    database = sqlite3.connect(database_path)
-    database.executescript(WORKING_TABLES)
-    database.commit()
-    return analysis, database
+    database = sqlite3.connect(database_path)              # open it
+    database.executescript(WORKING_TABLES)                 # create the working tables if new
+    database.commit()                                      # and keep them
+    return analysis, database                              # both are needed everywhere
 
 
 def build_line_index(analysis, database):
+    """Remembers where every statement line starts, so any id is read at once."""
     already = database.execute("SELECT COUNT(*) FROM line_index").fetchone()[0]
-    if already:
-        return
-    path = os.path.join(analysis, STATEMENTS)
-    if not os.path.isfile(path):
+    if already:                                            # built once, on the first round
+        return                                             # and never again
+    path = os.path.join(analysis, STATEMENTS)              # the statement list
+    if not os.path.isfile(path):                           # without it nothing can be read
         raise SystemExit("No statement list: " + path)
-    rows = []
-    with open(path, "rb") as fh:
-        offset = 0
-        for raw in fh:
-            text = raw.decode("utf-8", "replace").strip()
-            if text:
-                head = text.split(" | ", 1)[0].strip()
-                if head.isdigit():
-                    rows.append((int(head), offset))
-            offset += len(raw)
+    rows = []                                              # id and offset pairs
+    with open(path, "rb") as fh:                           # bytes, so the offsets are exact
+        offset = 0                                         # where the current line begins
+        for raw in fh:                                     # line by line
+            text = raw.decode("utf-8", "replace").strip()  # a damaged byte never stops us
+            if text:                                       # a blank line has no id
+                head = text.split(" | ", 1)[0].strip()     # the part before the first separator
+                if head.isdigit():                         # a real id
+                    rows.append((int(head), offset))       # remember where it sits
+            offset += len(raw)                             # the next line starts after this one
     database.executemany("INSERT OR REPLACE INTO line_index VALUES (?, ?)", rows)
-    database.commit()
+    database.commit()                                      # kept for every later round
 
 
 def read_statement(analysis, database, statement_id):
+    """Reads one statement line by its id, through the index."""
     row = database.execute(
         "SELECT offset FROM line_index WHERE id=?", (statement_id,)).fetchone()
-    if row is None:
-        return None
-    with open(os.path.join(analysis, STATEMENTS), "rb") as fh:
-        fh.seek(row[0])
-        line = fh.readline().decode("utf-8", "replace").rstrip("\r\n")
-    parts = line.split(" | ", 3)
-    if len(parts) < 4:
-        return {"id": statement_id, "line": line}
+    if row is None:                                        # an id the list does not hold
+        return None                                        # the caller says so plainly
+    with open(os.path.join(analysis, STATEMENTS), "rb") as fh:  # bytes again
+        fh.seek(row[0])                                    # jump straight to the line
+        line = fh.readline().decode("utf-8", "replace").rstrip("\r\n")  # read just that one
+    parts = line.split(" | ", 3)                           # id, file, lines, text
+    if len(parts) < 4:                                     # a line of another shape
+        return {"id": statement_id, "line": line}          # is handed over whole
     return {
-        "id": statement_id,
-        "file": parts[1],
-        "lines": parts[2],
-        "text": parts[3],
+        "id": statement_id,                                # the id
+        "file": parts[1],                                  # which file it comes from
+        "lines": parts[2],                                 # which lines it occupies
+        "text": parts[3],                                  # and its text
     }
 
 
 def get_state(database, key):
+    """Reads one value out of the small state table."""
     row = database.execute(
         "SELECT value FROM traversal_state WHERE key=?", (key,)).fetchone()
-    return row[0] if row else None
+    return row[0] if row else None                         # nothing stored yet is fine
 
 
 def set_state(database, key, value):
+    """Writes one value into the small state table."""
     database.execute(
         "INSERT INTO traversal_state (key, value) VALUES (?, ?) "
-        "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        "ON CONFLICT(key) DO UPDATE SET value=excluded.value",  # write or overwrite
         (key, value),
     )
 
 
 def is_visited(database, statement_id):
+    """True when the traversal has already recorded this statement."""
     row = database.execute(
         "SELECT visited FROM statements WHERE id=?", (statement_id,)).fetchone()
-    return bool(row and row[0])
+    return bool(row and row[0])                            # missing or empty means not visited
 
 
 def read_entry_points(analysis):
-    path = os.path.join(analysis, ENTRY_POINTS)
-    if not os.path.isfile(path):
+    """Reads the entry point list, in the order step 2 wrote it."""
+    path = os.path.join(analysis, ENTRY_POINTS)            # where it is
+    if not os.path.isfile(path):                           # step 2 has to be done first
         raise SystemExit("No entry point list: " + path)
-    ids = []
+    ids = []                                               # in file order
     with open(path, "r", encoding="utf-8") as fh:
         for line in fh:
-            line = line.strip()
-            if line and line.isdigit():
+            line = line.strip()                            # drop the newline
+            if line and line.isdigit():                    # only ids count
                 ids.append(int(line))
     return ids
 
@@ -129,79 +143,83 @@ def read_entry_points(analysis):
 # --------------------------------------------------------------------------
 
 def next_statement(analysis_path):
-    analysis, database = open_analysis(analysis_path)
+    """Names the next statement. Three sources, in this order."""
+    analysis, database = open_analysis(analysis_path)      # open everything
     try:
-        build_line_index(analysis, database)
+        build_line_index(analysis, database)               # built on the first round
 
-        planned = get_state(database, "next")
-        if planned:
+        planned = get_state(database, "next")              # first: the path we are on
+        if planned:                                        # the previous round named one
             statement_id = int(planned)
-            if not is_visited(database, statement_id):
+            if not is_visited(database, statement_id):     # still unvisited
                 show(read_statement(analysis, database, statement_id), "path")
-                return 0
-            set_state(database, "next", "")
-            database.commit()
+                return 0                                   # hand it over
+            set_state(database, "next", "")                # it got visited another way
+            database.commit()                              # so the path is closed
 
         row = database.execute("SELECT MIN(id) FROM pending_queue").fetchone()
-        if row and row[0] is not None:
+        if row and row[0] is not None:                     # second: the pending queue
             show(read_statement(analysis, database, row[0]), "pending queue")
-            return 0
+            return 0                                       # always the smallest id
 
-        for statement_id in read_entry_points(analysis):
-            if not is_visited(database, statement_id):
+        for statement_id in read_entry_points(analysis):   # third: the entry points
+            if not is_visited(database, statement_id):     # the first unvisited one
                 show(read_statement(analysis, database, statement_id), "entry point")
                 return 0
 
-        print(json.dumps({"end": "TRAVERSAL STOPS"}, ensure_ascii=False))
+        print(json.dumps({"end": "TRAVERSAL STOPS"}, ensure_ascii=False))  # nowhere left to go
         return 0
     finally:
-        database.close()
+        database.close()                                   # closed even if something threw
 
 
 def show(statement, came_from):
-    if statement is None:
+    """Prints one statement as a JSON line, saying where it came from."""
+    if statement is None:                                  # the id is not in the list
         print(json.dumps({"error": "this id is not in the statement list"},
                          ensure_ascii=False))
         return
-    statement = dict(statement)
-    statement["came_from"] = came_from
-    print(json.dumps(statement, ensure_ascii=False))
+    statement = dict(statement)                            # a copy, so nothing is disturbed
+    statement["came_from"] = came_from                     # path, pending queue or entry point
+    print(json.dumps(statement, ensure_ascii=False))       # any alphabet survives this
 
 
 # --------------------------------------------------------------------------
 
 def split_ids(text):
-    if not text:
-        return []
+    """Turns "1,2" into [1, 2]. An empty string means no ids."""
+    if not text:                                           # "" is a legitimate answer
+        return []                                          # it means: none
     ids = []
-    for piece in text.replace(";", ",").split(","):
-        piece = piece.strip()
-        if not piece:
-            continue
-        if not piece.lstrip("-").isdigit():
-            raise SystemExit("Not an id: " + piece)
+    for piece in text.replace(";", ",").split(","):        # commas or semicolons
+        piece = piece.strip()                              # spaces do not matter
+        if not piece:                                      # a double comma
+            continue                                       # is simply skipped
+        if not piece.lstrip("-").isdigit():                # anything that is not a number
+            raise SystemExit("Not an id: " + piece)        # is named, never guessed at
         ids.append(int(piece))
-    return sorted(set(ids))
+    return sorted(set(ids))                                # in order, without repeats
 
 
 def record(analysis_path, statement_id, inputs_text, outputs_text, unresolved):
-    analysis, database = open_analysis(analysis_path)
+    """Writes down what the intelligence established, and names the next statement."""
+    analysis, database = open_analysis(analysis_path)      # open everything
     try:
-        build_line_index(analysis, database)
+        build_line_index(analysis, database)               # in case this is the first call
 
         if database.execute("SELECT 1 FROM statements WHERE id=?",
-                            (statement_id,)).fetchone() is None:
+                            (statement_id,)).fetchone() is None:   # an id that does not exist
             raise SystemExit("No such statement in the database: " + str(statement_id))
-        if is_visited(database, statement_id):
+        if is_visited(database, statement_id):             # a statement is recorded once
             raise SystemExit(
                 "Statement " + str(statement_id)
                 + " has already been visited. It is never recorded twice."
             )
 
-        inputs = split_ids(inputs_text)
-        outputs = split_ids(outputs_text)
+        inputs = split_ids(inputs_text)                    # who sends information in
+        outputs = split_ids(outputs_text)                  # who it sends information to
 
-        for other in inputs + outputs:
+        for other in inputs + outputs:                     # every id named must exist
             if database.execute("SELECT 1 FROM statements WHERE id=?",
                                 (other,)).fetchone() is None:
                 raise SystemExit(
@@ -209,101 +227,103 @@ def record(analysis_path, statement_id, inputs_text, outputs_text, unresolved):
                     "points at something that is not in the program, it is unresolved."
                 )
 
-        is_source = 1 if (outputs and not inputs) else None
-        is_sink = 1 if not outputs else None
+        is_source = 1 if (outputs and not inputs) else None    # the definition of a source
+        is_sink = 1 if not outputs else None                   # the definition of a sink
 
-        database.execute(
+        database.execute(                                  # the record is filled in
             "UPDATE statements SET inputs=?, outputs=?, visited=1, "
             "is_source=?, is_sink=?, unresolved=? WHERE id=?",
             (
-                ",".join(str(x) for x in inputs),
-                ",".join(str(x) for x in outputs),
-                is_source,
-                is_sink,
-                1 if unresolved else None,
+                ",".join(str(x) for x in inputs),          # stored as text
+                ",".join(str(x) for x in outputs),         # so it can be read by eye
+                is_source,                                 # the source mark
+                is_sink,                                   # the sink mark
+                1 if unresolved else None,                 # the unresolved mark
                 statement_id,
             ),
         )
-        database.execute("DELETE FROM pending_queue WHERE id=?", (statement_id,))
+        database.execute("DELETE FROM pending_queue WHERE id=?", (statement_id,))  # done waiting
 
-        planned = ""
-        queued = []
-        if not unresolved:
-            unvisited = [o for o in outputs if not is_visited(database, o)]
+        planned = ""                                       # where the path goes next
+        queued = []                                        # what goes into the queue
+        if not unresolved:                                 # an unresolved statement ends the path
+            unvisited = [o for o in outputs if not is_visited(database, o)]  # where we may go
             if unvisited:
-                planned = str(unvisited[0])
-                for other in unvisited[1:]:
+                planned = str(unvisited[0])                # the smallest id continues the path
+                for other in unvisited[1:]:                # the rest wait their turn
                     database.execute(
                         "INSERT OR IGNORE INTO pending_queue (id) VALUES (?)", (other,)
                     )
                     queued.append(other)
 
-        set_state(database, "next", planned)
-        database.commit()
+        set_state(database, "next", planned)               # remembered for the next round
+        database.commit()                                  # everything written together
 
-        print(json.dumps({
-            "recorded": statement_id,
-            "is_source": bool(is_source),
+        print(json.dumps({                                 # the answer of this round
+            "recorded": statement_id,                      # which statement
+            "is_source": bool(is_source),                  # what marks it got
             "is_sink": bool(is_sink),
             "unresolved": bool(unresolved),
-            "next": int(planned) if planned else None,
-            "added_to_queue": queued,
-            "path_ended": planned == "",
+            "next": int(planned) if planned else None,     # which one comes next
+            "added_to_queue": queued,                      # what waits
+            "path_ended": planned == "",                   # and whether the path is over
         }, ensure_ascii=False))
         return 0
     finally:
-        database.close()
+        database.close()                                   # closed even if something threw
 
 
 # --------------------------------------------------------------------------
 
 def report(analysis_path):
-    analysis, database = open_analysis(analysis_path)
+    """Every number here is counted from the database, never from memory."""
+    analysis, database = open_analysis(analysis_path)      # open everything
     try:
-        count = lambda query: database.execute(query).fetchone()[0]
-        entry_points = read_entry_points(analysis)
-        unvisited_entry_points = [e for e in entry_points
+        count = lambda query: database.execute(query).fetchone()[0]   # one number per query
+        entry_points = read_entry_points(analysis)         # from the file
+        unvisited_entry_points = [e for e in entry_points  # which of them still wait
                                   if not is_visited(database, e)]
         numbers = {
-            "statements": count("SELECT COUNT(*) FROM statements"),
-            "visited": count("SELECT COUNT(*) FROM statements WHERE visited=1"),
-            "unvisited": count("SELECT COUNT(*) FROM statements WHERE visited IS NULL"),
-            "sources": count("SELECT COUNT(*) FROM statements WHERE is_source=1"),
-            "sinks": count("SELECT COUNT(*) FROM statements WHERE is_sink=1"),
-            "unresolved": count("SELECT COUNT(*) FROM statements WHERE unresolved=1"),
-            "pending_queue": count("SELECT COUNT(*) FROM pending_queue"),
-            "entry_points": len(entry_points),
-            "unvisited_entry_points": len(unvisited_entry_points),
+            "statements": count("SELECT COUNT(*) FROM statements"),                    # all of them
+            "visited": count("SELECT COUNT(*) FROM statements WHERE visited=1"),       # first kind
+            "unvisited": count("SELECT COUNT(*) FROM statements WHERE visited IS NULL"),  # second kind
+            "sources": count("SELECT COUNT(*) FROM statements WHERE is_source=1"),     # no inputs
+            "sinks": count("SELECT COUNT(*) FROM statements WHERE is_sink=1"),         # no outputs
+            "unresolved": count("SELECT COUNT(*) FROM statements WHERE unresolved=1"), # for step 5
+            "pending_queue": count("SELECT COUNT(*) FROM pending_queue"),              # still waiting
+            "entry_points": len(entry_points),                                         # from step 2
+            "unvisited_entry_points": len(unvisited_entry_points),                     # still to do
         }
-        for key in numbers:
+        for key in numbers:                                # printed in that order
             print(key + ": " + str(numbers[key]))
         return 0
     finally:
-        database.close()
+        database.close()                                   # closed even if something threw
 
 
 # --------------------------------------------------------------------------
 
 def main():
-    parser = argparse.ArgumentParser(prog="traverse.py",
+    """Three commands: next, record, report."""
+    parser = argparse.ArgumentParser(prog="traverse.py",       # the program name in the help
                                      description="SPIDER - step 4")
-    commands = parser.add_subparsers(dest="command", required=True)
+    commands = parser.add_subparsers(dest="command", required=True)  # a command is required
 
-    next_command = commands.add_parser("next")
-    next_command.add_argument("--analysis", required=True)
+    next_command = commands.add_parser("next")                 # which statement comes next
+    next_command.add_argument("--analysis", required=True)     # the analysis directory
 
-    record_command = commands.add_parser("record")
-    record_command.add_argument("--analysis", required=True)
-    record_command.add_argument("--id", required=True, type=int)
-    record_command.add_argument("--inputs", required=True)
-    record_command.add_argument("--outputs", required=True)
-    record_command.add_argument("--unresolved", action="store_true")
+    record_command = commands.add_parser("record")             # write down what was established
+    record_command.add_argument("--analysis", required=True)   # the analysis directory
+    record_command.add_argument("--id", required=True, type=int)   # which statement
+    record_command.add_argument("--inputs", required=True)     # who sends information in
+    record_command.add_argument("--outputs", required=True)    # who it sends information to
+    record_command.add_argument("--unresolved", action="store_true")  # not understood yet
 
-    report_command = commands.add_parser("report")
-    report_command.add_argument("--analysis", required=True)
+    report_command = commands.add_parser("report")             # the numbers
+    report_command.add_argument("--analysis", required=True)   # the analysis directory
 
-    arguments = parser.parse_args()
-    if arguments.command == "next":
+    arguments = parser.parse_args()                            # read them
+    if arguments.command == "next":                            # and do the work
         return next_statement(arguments.analysis)
     if arguments.command == "record":
         return record(arguments.analysis, arguments.id, arguments.inputs,
@@ -311,5 +331,5 @@ def main():
     return report(arguments.analysis)
 
 
-if __name__ == "__main__":
-    sys.exit(main())
+if __name__ == "__main__":                                     # when run directly
+    sys.exit(main())                                           # the exit code is the result
