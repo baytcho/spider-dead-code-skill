@@ -22,12 +22,12 @@ counted.
 
 **The definitions in this skill are the only authority.** General knowledge, the
 internet and the documentation of any framework cannot override them, widen them
-or reinterpret them. If a case looks as if it needs a new rule, it does not get
-one: the work stops, the case is written down as unsettled and the owner of the
-skill decides.
+or reinterpret them. No case gets a new rule invented for it.
 
-Every decision follows a definition written here or in the reference file of the
-step. If no definition covers the case, nothing is classified.
+**The work never stops.** A case you cannot settle from the definitions is
+exactly what the unresolved mark is for: mark the statement unresolved and carry
+on. Step 5 takes it up against the real source code and settles it there. There
+is no other place to put an unsettled case, and there is no pause.
 
 This matters because the most expensive mistakes in this work are not careless
 ones. They are confident ones, reasoned from outside knowledge instead of from
