@@ -175,6 +175,21 @@ be something you want to keep for a reason no analysis can know.
 
 The skill narrows the field. The decision to delete stays with you.
 
+**And you do not have to do that reading yourself.** Once the analysis is
+finished, the list is short and every entry carries an exact address, so the
+next step is a job you can hand straight back to your agent - an audit of those
+statements only, in the real source code:
+
+> Here is the list SPIDER produced. Take it one statement at a time. Open each
+> address in the real source code, tell me what is there, whether anything in
+> the running program reaches it, and whether it is safe to remove. Do not touch
+> anything else in the project.
+
+That is a bounded piece of work with a known size: a hundred addresses, not a
+codebase. Asking an agent to audit a whole codebase gives you an answer nobody
+can check. Asking it to audit a hundred exact addresses gives you an answer you
+can read line by line.
+
 ---
 
 ## Installing
