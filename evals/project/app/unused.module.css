@@ -1,0 +1,7 @@
+.wrapper {
+  display: flex;
+}
+
+.wrapper span {
+  opacity: 0.5;
+}

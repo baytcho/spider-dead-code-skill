@@ -1,0 +1,41 @@
+{
+  "note": "Expected results for evals/project. Every expectation below follows from a definition written in SKILL.md. Nothing here is a new rule.",
+
+  "statement_count": 17,
+
+  "statements_by_extension": {
+    ".css": 6,
+    ".ts": 2,
+    ".tsx": 9
+  },
+
+  "entry_points": [3, 4, 9, 12],
+  "entry_point_reasons": {
+    "3": "export const metadata - the framework reads it as data",
+    "4": "export default RootLayout - the framework loads the file and calls it",
+    "9": "'use client' - the bundler reads the directive",
+    "12": "export default Page - the framework loads the file and calls it"
+  },
+
+  "unresolved_on_first_visit": [12],
+  "unresolved_reason": {
+    "12": "it carries a name assembled at runtime: styles[state]"
+  },
+
+  "unvisited_at_the_end": [8, 13, 14, 17],
+  "unvisited_reasons": {
+    "8": ".orphan - the name appears nowhere in the code",
+    "13": ".wrapper - unused.module.css is imported by nobody",
+    "14": ".wrapper span - unused.module.css is imported by nobody",
+    "17": "neverCalled - the function is called nowhere"
+  },
+
+  "must_be_visited_at_the_end": [5, 6, 7],
+  "must_be_visited_reasons": {
+    "5": ".card - used literally as styles.card",
+    "6": ".pending - reachable through the assembled name; 'pending' is written in the file",
+    "7": ".done - reachable through the assembled name; 'done' is written in the file"
+  },
+
+  "unresolved_at_the_end": 0
+}
