@@ -86,10 +86,15 @@ Text alone cannot stop an agent from reasoning its way into a wrong
 classification. A fixed answer key can.
 
 `evals/` holds a small project carrying six deliberate traps, and the correct
-answer for each one written down in advance. Twenty-nine machine checks. Run it
-against the programs, or against a real analysis produced by any model:
+answer for each one written down in advance. Twenty-nine machine checks.
+
+**It lives in this repository, not inside the packaged `spider.skill`.** The
+package carries only what the agent needs in order to work. To run the checks,
+clone the repository:
 
 ```bash
+git clone https://github.com/baytcho/spider-dead-code-skill.git
+cd spider-dead-code-skill
 python evals/run_evals.py --self-test
 python evals/run_evals.py --check <analysis directory>
 ```
@@ -169,7 +174,7 @@ all that remain.
 SKILL.md          the course of the work and every definition it stands on
 scripts/          the programs that keep the order and hold the records
 references/       the details of each step, read when that step begins
-evals/            the test project and the answer key
+evals/            the test project and the answer key (repository only)
 ```
 
 ---
