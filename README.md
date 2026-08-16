@@ -155,6 +155,28 @@ unresolved state.
 
 ---
 
+## What you get at the end, and what you do with it
+
+You get a short list of statements, each with its exact address: the file and
+the first and last line it occupies.
+
+That list is the point of the whole thing. **You do not go back and read your
+codebase. You read the list.**
+
+On the project this skill was built against, 858 statements went in and 121 came
+out on that list. One statement in seven. Everything else had been traced to a
+line of running code and needed no further thought.
+
+Those 121 are where you look with your own eyes, and it takes an afternoon
+instead of a month. They are candidates, not a verdict: open each address, see
+what is there, and decide. Some of them will turn out to be a whole abandoned
+screen you had forgotten. Some will be a rule nobody names any more. Some will
+be something you want to keep for a reason no analysis can know.
+
+The skill narrows the field. The decision to delete stays with you.
+
+---
+
 ## Installing
 
 **From the packaged release** - download `spider.skill` from the
