@@ -261,4 +261,13 @@ evals/            the test project and the answer key (repository only)
 
 MIT. Use it, change it, ship it - keep the copyright line.
 
+## Background
+
+Why it works this way, what it found on a real project, and the uncomfortable part
+about two models giving two different answers:
+
+[Dead code analysis that is allowed to say "I do not understand this"](https://dev.to/baytcho/dead-code-analysis-that-is-allowed-to-say-i-dont-understand-this-55lh)
+
+---
+
 Built by [Roumen Baytchev](https://github.com/baytcho).
