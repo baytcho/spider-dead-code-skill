@@ -1,5 +1,9 @@
 # SPIDER
 
+[![checks](https://github.com/baytcho/spider-dead-code-skill/actions/workflows/checks.yml/badge.svg)](https://github.com/baytcho/spider-dead-code-skill/actions/workflows/checks.yml)
+[![license MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![release](https://img.shields.io/github/v/release/baytcho/spider-dead-code-skill)](https://github.com/baytcho/spider-dead-code-skill/releases)
+
 **An agent skill that finds the code your project does not need - and proves it.**
 
 A spider walks its web thread by thread. So does this skill: it splits your whole
