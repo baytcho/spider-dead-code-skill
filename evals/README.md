@@ -55,7 +55,21 @@ entry points fails this check, and it fails it before any conclusion is drawn.
 
 It carries `styles[state]` - a name assembled at runtime. The definition is
 unconditional: such a statement is never declared unused; it is marked
-unresolved. That is what step 5 exists for.
+unresolved. That is what step 6 exists for.
+
+## The suites
+
+`--self-test` runs the whole machinery: the classic five-step flow over the
+test project, the synthetic machine suite of step 4 (directions, the isolated
+dead pair, the guards), the queue-direction suite of step 6, the final-list
+invariants with a drifted live file, the style search, and the unit checks of
+the splitter and the boundaries.
+
+`--with-joern <joern-cli>` adds the real border: it builds the graph of the
+test project with the pinned Joern, compares the export line for line with
+`fixtures/edges-front-real.tsv`, and proves that every addressed end of the
+real export lands in a statement. It is required before any publication;
+without the flag the run says out loud that it was skipped.
 
 Once the real code is read, the values the name can take are written in the same
 file: `done` and `pending`. So the review resolves it and the two rules become

@@ -1,4 +1,4 @@
-"""SPIDER - step 4: traversal and filling of the database.
+"""SPIDER - step 5: traversal and filling of the database.
 
 The program decides nothing about the statements. It only:
   - names the next statement, following the movement rules;
@@ -13,11 +13,12 @@ Which ids go in and which go out is decided by the intelligence.
     traverse.py report --analysis <dir>
 
 Every line below carries a comment. Nothing here can halt the analysis. The
-refusals are three, they all fire before anything is written, and each one names
-what to do: no database, no statement list, no entry point list; an id that is
-not in the database; a statement recorded twice. A statement that cannot be
-understood is not a refusal - it is recorded with --unresolved and the work
-goes on.
+refusals all fire before anything is written and each one names what to do:
+no database, no statement list, no entry point list; an id that is not in the
+database; a statement recorded twice; and the contract of the round - record
+accepts only the id the last `next` handed over, and refuses everything else.
+A statement that cannot be understood is not a refusal - it is recorded with
+--unresolved and the work goes on.
 """
 
 import argparse                                   # reads the command line
@@ -140,6 +141,22 @@ def read_entry_points(analysis):
     return ids
 
 
+def read_demoted(analysis):
+    """The entries the load graph demoted: directives in unimported files.
+
+    Mirrors machine_links.read_demoted, so that the traversal never opens a
+    round on a statement the walk already refused to start from."""
+    path = os.path.join(analysis, "demoted-entries.txt")   # written by load_links
+    demoted = set()
+    if os.path.isfile(path):                               # the file is optional
+        with open(path, "r", encoding="utf-8") as fh:
+            for line in fh:
+                piece = line.split("\t", 1)[0].strip()     # the id column
+                if piece.isdigit():
+                    demoted.add(int(piece))
+    return demoted
+
+
 # --------------------------------------------------------------------------
 
 def next_statement(analysis_path):
@@ -147,23 +164,34 @@ def next_statement(analysis_path):
     analysis, database = open_analysis(analysis_path)      # open everything
     try:
         build_line_index(analysis, database)               # built on the first round
+        demoted = read_demoted(analysis)                   # directives that are not entries
 
         planned = get_state(database, "next")              # first: the path we are on
         if planned:                                        # the previous round named one
             statement_id = int(planned)
-            if not is_visited(database, statement_id):     # still unvisited
+            if statement_id in demoted:                    # named before its demotion
+                set_state(database, "next", "")            # a demoted directive is a
+                database.commit()                          # finding, never a round
+            elif not is_visited(database, statement_id):   # still unvisited
                 show(read_statement(analysis, database, statement_id), "path")
                 return 0                                   # hand it over
-            set_state(database, "next", "")                # it got visited another way
-            database.commit()                              # so the path is closed
+            else:
+                set_state(database, "next", "")            # it got visited another way
+                database.commit()                          # so the path is closed
 
         row = database.execute("SELECT MIN(id) FROM pending_queue").fetchone()
         if row and row[0] is not None:                     # second: the pending queue
+            set_state(database, "next", str(row[0]))       # what record may now accept
+            database.commit()                              # remembered before the answer
             show(read_statement(analysis, database, row[0]), "pending queue")
             return 0                                       # always the smallest id
 
         for statement_id in read_entry_points(analysis):   # third: the entry points
+            if statement_id in demoted:                    # the load graph proved this
+                continue                                   # directive is not an entry
             if not is_visited(database, statement_id):     # the first unvisited one
+                set_state(database, "next", str(statement_id))  # what record may now accept
+                database.commit()                          # remembered before the answer
                 show(read_statement(analysis, database, statement_id), "entry point")
                 return 0
 
@@ -195,17 +223,37 @@ def split_ids(text):
         piece = piece.strip()                              # spaces do not matter
         if not piece:                                      # a double comma
             continue                                       # is simply skipped
-        if not piece.lstrip("-").isdigit():                # anything that is not a number
+        if not piece.isdigit():                            # anything that is not a number
             raise SystemExit("Not an id: " + piece)        # is named, never guessed at
         ids.append(int(piece))
     return sorted(set(ids))                                # in order, without repeats
 
 
 def record(analysis_path, statement_id, inputs_text, outputs_text, unresolved):
-    """Writes down what the intelligence established, and names the next statement."""
+    """Writes down what the intelligence established, and names the next statement.
+
+    The contract of the round is enforced here: record accepts only the id the
+    last `next` handed over. The program holds the path and the queue exactly
+    so that the intelligence cannot lose them; a record of some other id would
+    be the intelligence choosing the path after all. Everything the record
+    changes - the statement, the queue, the planned next - lands in a single
+    transaction, so an interrupted record leaves no half-written state.
+    """
     analysis, database = open_analysis(analysis_path)      # open everything
     try:
         build_line_index(analysis, database)               # in case this is the first call
+
+        planned_now = get_state(database, "next")          # what the last `next` handed over
+        if not planned_now:                                # no round is open
+            raise SystemExit(
+                "No statement has been handed over. Ask `next` first; record "
+                "accepts only the id it answers with.")
+        if str(statement_id) != planned_now:               # a different id than handed
+            raise SystemExit(
+                "The last `next` handed over statement " + planned_now
+                + ", not " + str(statement_id) + ". Record accepts only the "
+                "id `next` answered with - the program holds the path, not "
+                "the intelligence.")
 
         if database.execute("SELECT 1 FROM statements WHERE id=?",
                             (statement_id,)).fetchone() is None:   # an id that does not exist
@@ -232,6 +280,7 @@ def record(analysis_path, statement_id, inputs_text, outputs_text, unresolved):
 
         database.execute(                                  # the record is filled in
             "UPDATE statements SET inputs=?, outputs=?, visited=1, "
+            "visited_by='intelligence', "                  # who set the mark
             "is_source=?, is_sink=?, unresolved=? WHERE id=?",
             (
                 ",".join(str(x) for x in inputs),          # stored as text
@@ -242,6 +291,17 @@ def record(analysis_path, statement_id, inputs_text, outputs_text, unresolved):
                 statement_id,
             ),
         )
+        try:                                               # the same links, as evidence rows
+            database.executemany(                          # sender -> receiver, stated
+                "INSERT OR IGNORE INTO links (source, target, kind, origin) "
+                "VALUES (?, ?, 'STATED', 'intelligence')",
+                [(other, statement_id) for other in inputs]      # who sends into it
+                + [(statement_id, other) for other in outputs])  # and who it sends to
+            import machine_links                           # the one place columns derive from
+            machine_links.rebuild_columns(                 # both ends of every stated link
+                database, set([statement_id]) | set(inputs) | set(outputs))
+        except sqlite3.OperationalError:                   # a base from before the links table
+            pass                                           # keeps working on its columns alone
         database.execute("DELETE FROM pending_queue WHERE id=?", (statement_id,))  # done waiting
 
         planned = ""                                       # where the path goes next
@@ -281,15 +341,18 @@ def report(analysis_path):
     try:
         count = lambda query: database.execute(query).fetchone()[0]   # one number per query
         entry_points = read_entry_points(analysis)         # from the file
+        demoted = read_demoted(analysis)                   # directives that are not entries
         unvisited_entry_points = [e for e in entry_points  # which of them still wait
-                                  if not is_visited(database, e)]
+                                  if e not in demoted
+                                  and not is_visited(database, e)]
         numbers = {
+            "demoted_entries": len(demoted),               # findings, never rounds
             "statements": count("SELECT COUNT(*) FROM statements"),                    # all of them
             "visited": count("SELECT COUNT(*) FROM statements WHERE visited=1"),       # first kind
             "unvisited": count("SELECT COUNT(*) FROM statements WHERE visited IS NULL"),  # second kind
             "sources": count("SELECT COUNT(*) FROM statements WHERE is_source=1"),     # no inputs
             "sinks": count("SELECT COUNT(*) FROM statements WHERE is_sink=1"),         # no outputs
-            "unresolved": count("SELECT COUNT(*) FROM statements WHERE unresolved=1"), # for step 5
+            "unresolved": count("SELECT COUNT(*) FROM statements WHERE unresolved=1"), # for step 6
             "pending_queue": count("SELECT COUNT(*) FROM pending_queue"),              # still waiting
             "entry_points": len(entry_points),                                         # from step 2
             "unvisited_entry_points": len(unvisited_entry_points),                     # still to do
@@ -306,7 +369,7 @@ def report(analysis_path):
 def main():
     """Three commands: next, record, report."""
     parser = argparse.ArgumentParser(prog="traverse.py",       # the program name in the help
-                                     description="SPIDER - step 4")
+                                     description="SPIDER - step 5")
     commands = parser.add_subparsers(dest="command", required=True)  # a command is required
 
     next_command = commands.add_parser("next")                 # which statement comes next

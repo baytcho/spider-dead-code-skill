@@ -1,6 +1,6 @@
-# SPIDER - step 4: the traversal
+# SPIDER - step 5: the traversal
 
-Read this file before you begin step 4.
+Read this file before you begin step 5.
 
 ---
 
@@ -40,6 +40,13 @@ another, until the path ends.
 
 Take the id of the statement that is the first entry point and has not been
 visited.
+
+When step 4 has run, part of the database is already filled and part of the
+entry points are already visited. The traversal then starts at the first entry
+point the machine did not reach, and walks whatever is left. When every entry
+point is already visited and the pending queue is empty, it answers
+`TRAVERSAL STOPS` at once - which is not the end of the analysis but the point
+where step 6 takes over the statements that carry no link at all.
 
 ---
 
@@ -136,6 +143,11 @@ established.
 
 ### Move 3. The recording
 
+The program enforces the round: `record` accepts only the id the last `next`
+handed over, refuses an id it did not hand, refuses a second recording, and
+writes the statement, the queue and the planned next in one transaction, so an
+interrupted record leaves no half-written state.
+
     python SKILL/scripts/traverse.py record --analysis "ANALYSIS" --id N --inputs "1,2" --outputs "5,7"
 
 For an unresolved statement add `--unresolved`. An empty list is passed as `""`.
@@ -175,7 +187,7 @@ does not keep the queue in its head.
 - Skipping a statement the program handed over.
 - Modifying the statement list, the entry point list or the project. They are
   only read.
-- A verdict of needed or not needed. That is not part of step 4.
+- A verdict of needed or not needed. That is not part of step 5.
 - A number in the report written from memory.
 - An invented link. A link is recorded only when it has been established from
   the code. If no link has been established, the statement is unresolved.

@@ -1,4 +1,4 @@
-"""SPIDER - step 5: review of the unresolved statements.
+"""SPIDER - step 6: review of the unresolved statements.
 
 The program decides nothing about the statements. It only:
   - lists the unresolved ones and names the order;
@@ -18,6 +18,7 @@ in the pending queue. After that the traversal runs again.
 
     review.py list    --analysis <dir>
     review.py next    --analysis <dir>
+    review.py sweep   --analysis <dir> [--dry] [--unreached]
     review.py resolve --analysis <dir> --id N --inputs "1,2" --outputs "5"
     review.py reopen  --analysis <dir> --id N --place entry|queue|none
     review.py finish  --analysis <dir>
@@ -54,8 +55,8 @@ CREATE TABLE IF NOT EXISTS review_state (
 );
 
 CREATE TABLE IF NOT EXISTS line_index (
-    id     INTEGER PRIMARY KEY,                   -- built by step 4
-    offset INTEGER                                -- created here too, in case step 4 never ran
+    id     INTEGER PRIMARY KEY,                   -- built by step 5
+    offset INTEGER                                -- created here too, in case step 5 never ran
 );
 """
 
@@ -73,7 +74,7 @@ def open_analysis(analysis):
 
 
 def read_statement(analysis, database, statement_id):
-    """Reads one statement line by its id, through the index step 4 built."""
+    """Reads one statement line by its id, through the index step 5 built."""
     row = database.execute(
         "SELECT offset FROM line_index WHERE id=?", (statement_id,)).fetchone()
     if row is None:                                        # no index entry for this id
@@ -111,17 +112,28 @@ def already_resolved(database, statement_id):
 
 
 def has_review_entry(analysis, statement_id):
-    """True when the review file holds an entry for this statement."""
+    """True when the review file holds an entry with substance for this statement.
+
+    A heading with nothing underneath is not evidence of a review. At least one
+    line of text has to stand between the heading and the next heading, or the
+    decision has nothing to lean on.
+    """
     path = os.path.join(analysis, REVIEW)                  # the review file
     if not os.path.isfile(path):                           # nothing written yet
         return False
     heading = "## Statement " + str(statement_id)          # the line that opens an entry
+    inside = False                                         # are we under the heading
     with open(path, "r", encoding="utf-8") as fh:
         for line in fh:
             stripped = line.strip()                        # spaces do not matter
             if stripped == heading or stripped.startswith(heading + " "):  # exact, or with a title
-                return True
-    return False                                           # no entry for this id
+                inside = True                              # the entry begins
+                continue
+            if inside and stripped.startswith("## "):      # the next entry begins
+                return False                               # and this one held nothing
+            if inside and stripped:                        # a line of substance
+                return True                                # the entry is real
+    return False                                           # no entry, or an empty one
 
 
 def split_ids(text):
@@ -156,6 +168,22 @@ def read_entry_points(analysis):
 def is_entry_point(analysis, statement_id):
     """True when this id already stands in the entry point list."""
     return statement_id in set(read_entry_points(analysis))
+
+
+def read_demoted(analysis):
+    """The entries the load graph demoted: directives in unimported files.
+
+    Mirrors machine_links.read_demoted. A demoted directive is a finding of
+    the analysis, never a round of it - it does not hold the work open."""
+    path = os.path.join(analysis, "demoted-entries.txt")   # written by load_links
+    demoted = set()
+    if os.path.isfile(path):                               # the file is optional
+        with open(path, "r", encoding="utf-8") as handle:
+            for line in handle:
+                piece = line.split("\t", 1)[0].strip()     # the id column
+                if piece.isdigit():
+                    demoted.add(int(piece))
+    return demoted
 
 
 def append_entry_point(analysis, statement_id):
@@ -248,6 +276,8 @@ def resolve(analysis_path, statement_id, inputs_text, outputs_text):
 
         database.execute(                                  # the record is completed
             "UPDATE statements SET inputs=?, outputs=?, unresolved=NULL, "
+            "visited=1, "                                  # understood means read and recorded
+            "reviewed=1, visited_by='intelligence', "      # a decision with evidence was written
             "is_source=?, is_sink=? WHERE id=?",
             (
                 ",".join(str(x) for x in inputs),          # stored as text
@@ -257,9 +287,24 @@ def resolve(analysis_path, statement_id, inputs_text, outputs_text):
                 statement_id,
             ),
         )
+        try:                                               # the same links, as evidence rows
+            database.executemany(                          # sender -> receiver, stated
+                "INSERT OR IGNORE INTO links (source, target, kind, origin) "
+                "VALUES (?, ?, 'STATED', 'intelligence')",
+                [(other, statement_id) for other in inputs]      # who sends into it
+                + [(statement_id, other) for other in outputs])  # and who it sends to
+            import machine_links                           # the one place columns derive from
+            machine_links.rebuild_columns(                 # both ends of every stated link
+                database, set([statement_id]) | set(inputs) | set(outputs))
+        except sqlite3.OperationalError:                   # a base from before the links table
+            pass                                           # keeps working on its columns alone
 
         queued = []                                        # what this decision opens up
-        for other in sorted(set(inputs + outputs)):        # every id the links name
+        for other in outputs:                              # only where the information GOES
+            # The inputs are recorded but never queued. Queueing them would
+            # walk backwards: a dead caller of a living statement would be
+            # visited only because the living one was resolved, and a visited
+            # statement is of the first kind. Execution flows along outputs.
             row = database.execute(
                 "SELECT visited FROM statements WHERE id=?", (other,)).fetchone()
             if row and row[0]:                             # already visited
@@ -302,7 +347,12 @@ def reopen(analysis_path, statement_id, place):
     try:
         guard(analysis, database, statement_id)            # the three checks
 
-        if place == "none" and is_entry_point(analysis, statement_id):  # the one contradiction
+        if (place == "none" and is_entry_point(analysis, statement_id)
+                and statement_id not in read_demoted(analysis)):
+            # A demoted entry is no contradiction: the load graph proved the
+            # file is imported by nothing, so the outside influence the list
+            # promised never fires, and the traversal skips it. For a real
+            # entry the contradiction stands whole.
             raise SystemExit(
                 "Statement " + str(statement_id) + " is in the entry point list.\n"
                 "Being an entry point means something outside reaches it, which "
@@ -312,7 +362,8 @@ def reopen(analysis_path, statement_id, place):
             )
 
         database.execute(                                  # only the two marks fall
-            "UPDATE statements SET visited=NULL, unresolved=NULL WHERE id=?",
+            "UPDATE statements SET visited=NULL, visited_by=NULL, "
+            "unresolved=NULL, reviewed=1 WHERE id=?",      # the decision is on record
             (statement_id,),                               # the links are left alone
         )
 
@@ -340,6 +391,71 @@ def reopen(analysis_path, statement_id, place):
             "state": state,                                # what became of it
             "placed": placed,                              # and where it went
         }, ensure_ascii=False))
+        return 0
+    finally:
+        database.close()                                   # closed even if something threw
+
+
+def sweep(analysis_path, dry, unreached=False):
+    """Hands the machine's blind spots to this step.
+
+    After the machine walk of step 4, three kinds of statement have never been
+    examined by anyone: those in files the graph cannot read, those the graph
+    parsed but found no link for, and nothing else. Left alone they would slip
+    into the final list without a single pair of eyes on them. This command
+    marks every one of them unresolved, so that the ordinary rounds of this
+    step take them up one by one against the real source code.
+
+    Statements the machine linked but did not reach are NOT swept by default:
+    when the graph resolves the project's calls, execution provably does not
+    lead to them, and the final list is exactly the check they get.
+
+    With --unreached those statements are handed over as well. That is for the
+    case the intelligence has established from the real source code that the
+    graph does not resolve the ways this project calls its own code, so
+    "linked but unreached" does not mean "execution cannot lead here" - it
+    only means the machine could not see the call. The review then divides
+    them the ordinary way: a statement a live statement provably sends into
+    is resolved, and one nothing live sends into stays in the second kind.
+
+    With --dry the command only counts and names; nothing is written.
+    """
+    analysis, database = open_analysis(analysis_path)      # open everything
+    try:
+        try:                                               # the walk has to have run
+            walked = database.execute(
+                "SELECT value FROM meta WHERE key='phase4_walk'").fetchone()
+        except sqlite3.OperationalError:                   # a base without the meta table
+            walked = None                                  # is a base the walk never touched
+        if not walked or walked[0] != "done":              # otherwise the states mean nothing
+            raise SystemExit(
+                "The machine walk has not run. Sweep hands over the machine's "
+                "blind spots, and without the walk there are no machine states "
+                "to read. Run machine_links.py walk first - or, without the "
+                "machine, run the traversal of step 5 as before.")
+        states = ("('untouched', 'unsupported', 'unreached')" if unreached
+                  else "('untouched', 'unsupported')")     # the default never widens itself
+        rows = [row[0] for row in database.execute(        # the never-examined ones
+            "SELECT id FROM statements "
+            "WHERE visited IS NULL "                       # nobody reached or recorded it
+            "AND unresolved IS NULL "                      # not already waiting for review
+            "AND reviewed IS NULL "                        # never reviewed before
+            "AND machine_state IN " + states + " "
+            "ORDER BY id")]
+        if dry:                                            # counting only
+            print(json.dumps({"would_sweep": len(rows),    # how many would be handed over
+                              "first_twenty": rows[:20]},  # and which ones
+                             ensure_ascii=False))
+            return 0
+        for statement_id in rows:                          # every blind spot
+            database.execute(                              # becomes an unresolved case
+                "UPDATE statements SET unresolved=1 WHERE id=?", (statement_id,))
+        database.commit()                                  # everything lands together
+        print(json.dumps({"swept": len(rows),              # handed over to this step
+                          "now_unresolved": database.execute(
+                              "SELECT COUNT(*) FROM statements WHERE unresolved=1"
+                          ).fetchone()[0]},                # counted from the database
+                         ensure_ascii=False))
         return 0
     finally:
         database.close()                                   # closed even if something threw
@@ -385,9 +501,11 @@ def finish(analysis_path):
 
         still_unresolved = database.execute(               # counted from the database
             "SELECT COUNT(*) FROM statements WHERE unresolved=1").fetchone()[0]
+        demoted = read_demoted(analysis)                   # directives that are not entries
         unvisited_entry_points = [                         # and from the entry point list
             e for e in read_entry_points(analysis)
-            if not database.execute(
+            if e not in demoted                            # a demoted one is a finding
+            and not database.execute(
                 "SELECT visited FROM statements WHERE id=?", (e,)).fetchone()[0]
         ]
 
@@ -446,13 +564,18 @@ def report(analysis_path):
 # --------------------------------------------------------------------------
 
 def main():
-    """Six commands: list, next, resolve, reopen, finish, report."""
-    parser = argparse.ArgumentParser(prog="review.py", description="SPIDER - step 5")
+    """Seven commands: list, next, sweep, resolve, reopen, finish, report."""
+    parser = argparse.ArgumentParser(prog="review.py", description="SPIDER - step 6")
     commands = parser.add_subparsers(dest="command", required=True)  # a command is required
 
     for name in ("list", "next", "finish", "report"):      # these four take only the directory
         command = commands.add_parser(name)
         command.add_argument("--analysis", required=True)
+
+    sweep_command = commands.add_parser("sweep")           # hands over the machine's blind spots
+    sweep_command.add_argument("--analysis", required=True)
+    sweep_command.add_argument("--dry", action="store_true")  # count and name, write nothing
+    sweep_command.add_argument("--unreached", action="store_true")  # hand over the unreached too
 
     resolve_command = commands.add_parser("resolve")           # the statement is understood
     resolve_command.add_argument("--analysis", required=True)  # the analysis directory
@@ -476,6 +599,8 @@ def main():
                        arguments.outputs)
     if arguments.command == "reopen":
         return reopen(arguments.analysis, arguments.id, arguments.place)
+    if arguments.command == "sweep":
+        return sweep(arguments.analysis, arguments.dry, arguments.unreached)
     if arguments.command == "finish":
         return finish(arguments.analysis)
     return report(arguments.analysis)

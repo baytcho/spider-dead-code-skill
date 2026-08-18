@@ -1,4 +1,21 @@
 node_modules/
-package-lock.json
 __pycache__/
 *.pyc
+
+# Analysis and CPG artifacts
+analysis/
+*.db
+*.db-journal
+*.tsv
+*.cpg.bin
+
+# The stored real-graph fixture is part of the evaluation suite and MUST
+# travel with the code - without it the Joern suite cannot hold the border.
+!evals/fixtures/*.tsv
+
+# Joern writes a working copy of the graph into the current directory
+workspace/
+
+# OS files
+.DS_Store
+Thumbs.db

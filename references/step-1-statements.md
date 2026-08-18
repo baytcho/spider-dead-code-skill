@@ -70,8 +70,17 @@ Every line of the statement list holds: id, file, first-last line, text.
 
 ## 4. What comes out
 
-An analysis directory holding nothing but the application code, and a statement
-list in which every line is one top-level statement with an id and an address.
+An analysis directory holding nothing but the application code, and:
+
+| File | What it is |
+| --- | --- |
+| `statements.txt` | every line is one top-level statement with an id and an address |
+| `css-selectors.tsv` | every name of every style rule, with its own line - addressable one by one |
+| `manifest.json` | a checksum of every copied file, and the versions that took the snapshot |
+| `split-report.json` | the numbers, with every unsplit file named |
+
+A file left unsplit makes the exit code of `split` non-zero: an unread file
+counted as covered is exactly the silence this step refuses.
 
 ---
 
@@ -100,8 +109,13 @@ code. It is not made by a program and it is not made by guesswork.
     python SKILL/scripts/statements.py copy --project "PROJECT" --analysis "ANALYSIS"
 
 The program reads `source-files.txt` from the analysis directory and copies the
-listed files, keeping the same names and the same folder layout. The project is
-only read.
+listed files, keeping the same names and the same folder layout, and writes the
+manifest with a checksum of every copy. The project is only read.
+
+The boundaries are guarded by name: an absolute path, a path climbing out with
+`..`, or a path resolving outside the project or the analysis is a refusal,
+never a quiet fix. An existing snapshot is refused as well - `--fresh` removes
+it first - because a copy over an old snapshot mixes two versions of the code.
 
 ### Move 5. Splitting into statements
 
@@ -131,10 +145,11 @@ A file that cannot be split is **never dropped silently** - it goes into the
 report with the reason. A file lost in silence would be counted as covered while
 nobody has read it.
 
-The TypeScript parser is looked for in this order: inside the skill directory,
-then in the project. If it is missing, run `npm install typescript@5` inside the
-skill directory. Version 5 is required; version 6 and later do not expose the
-same parser.
+The TypeScript parser lives inside the skill directory and nowhere else - it
+is never taken from the analysed project, because that would execute the
+project's own code. If it is missing, run `npm install typescript@5` inside
+the skill directory. Version 5 is required and pinned by the skill's own
+lockfile.
 
 ### What a line of the statement list looks like
 

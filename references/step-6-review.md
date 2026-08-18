@@ -1,6 +1,6 @@
-# SPIDER - step 5: the review of the unresolved statements
+# SPIDER - step 6: the review of the unresolved statements
 
-Read this file before you begin step 5.
+Read this file before you begin step 6.
 
 ---
 
@@ -47,6 +47,56 @@ is what it takes.
 
 The intelligence receives a list of the statements to be reviewed - the
 unresolved ones.
+
+**When step 4 has run, this step carries a second load.** Every statement the
+machine could not look at came out of it with no link at all: the whole of the
+style sheets, and whatever the graph frontends do not parse. Those statements
+are not unresolved and not unvisited-because-unreached. They are unexamined.
+One command hands them over:
+
+    python SKILL/scripts/review.py sweep --analysis "ANALYSIS"
+
+It marks every never-examined statement unresolved, so the ordinary rounds of
+this step take them up one by one against the real source code. Machine-linked
+but unreached statements are not swept by default: with both halves of step 4
+filled - the calls and the loading - the machine looked for a way in along
+both, found none, and the final list is the check they get. When the
+intelligence establishes from the real source code that the machine still
+cannot see how this project reaches that code, the same command with
+`--unreached` hands those statements over too, and the review divides them the
+ordinary way: a statement a live statement provably sends into is resolved,
+and one nothing live sends into stays in the second kind. Read the walk's own
+coverage line before deciding which of the two the run is in. For the style
+sheets, `style_links.py find` writes the evidence file first, so the review
+reads findings instead of searching by hand.
+
+Five traps came out of doing exactly that. The first three turned a live
+statement into a seemingly dead one; the last two turned a dead one into a
+seemingly live one, which is worse, because nobody goes looking for it:
+
+- **A name assembled while the program runs.** The markup writes
+  `status-${kind}` and the style sheet carries `status-success`. Searching for
+  the whole written name finds nothing. Search for the beginning of the name as
+  well.
+- **A rule used inside its own file.** An animation is defined and referenced in
+  the same style sheet. A search that skips the file the statement sits in finds
+  nothing.
+- **A file name mistaken for a class.** In `@import "../x/y.css"` the dot
+  belongs to a file name. Taking it for the start of a class name matches every
+  line that mentions a file of that kind.
+- **Evidence cut off before the row that proves it.** Version 2.1 kept forty
+  findings per statement, in file order. On a real project 279 statements hit
+  that cap and 132 of them were settled only when the search ran again with no
+  cap: the proving row had been the forty-first. The finder now writes every
+  finding, strongest first, and a cap - if one is ever asked for - writes into
+  the file that it bit.
+- **A living ancestor taken for a living rule.** `.wrapper .grid` styles the
+  grid, not the wrapper. Version 2.1 collected every class of the selector, so
+  a living `.wrapper` counted as evidence for a rule whose own name appears
+  nowhere. Each row of the evidence file now carries a **role**: `subject` when
+  the rule styles that name, `context` when the name only says where the
+  subject stands. **A row whose role is `context` is not evidence that this
+  rule is used.**
 
 The review goes through every unresolved statement, one after another.
 
@@ -177,9 +227,11 @@ A resolved statement:
 
     python SKILL/scripts/review.py resolve --analysis "ANALYSIS" --id N --inputs "1,2" --outputs "5"
 
-The program fills in the links, removes the unresolved mark, sets the source and
-sink marks again and writes into the pending queue every id from the links that
-has not been visited yet.
+The program fills in the links, sets the visited and reviewed marks, removes
+the unresolved mark, sets the source and sink marks again and writes into the
+pending queue every id from the OUTPUTS that has not been visited yet. The
+inputs are recorded but never queued: walking backwards along them is how a
+dead caller of a living statement would be visited and declared alive.
 
 A pending statement - it is reopened:
 
@@ -229,9 +281,9 @@ The numbers in the report are computed from the database, never from memory.
 
 ## 10. The new pending queue
 
-It fills up throughout step 5, but **it is not walked** until the step is over.
+It fills up throughout step 6, but **it is not walked** until the step is over.
 
-After the end: the traversal of step 4 is run again and walks the new queue by
+After the end: the traversal of step 5 is run again and walks the new queue by
 its own rules.
 
 ---

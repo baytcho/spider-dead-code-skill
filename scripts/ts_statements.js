@@ -28,6 +28,7 @@ function scriptKind(path) {
 }
 
 const answer = {};                                 // one entry per file
+answer["__version__"] = ts.version;                // which parser did the splitting
 
 for (const file of files) {                        // every file in turn
   try {
@@ -39,6 +40,20 @@ for (const file of files) {                        // every file in turn
       true,                                        // keep the positions we need
       scriptKind(file)                             // and the right language
     );
+    // createSourceFile never throws on broken syntax - it records the damage
+    // in parseDiagnostics instead. A file with broken syntax has unreliable
+    // boundaries, so it goes back as an error, never as a clean split.
+    const damage = source.parseDiagnostics || [];  // what the parser could not accept
+    if (damage.length > 0) {                       // any diagnostic means broken syntax
+      const first = damage[0];                     // the first one names the trouble
+      const where =                                // the line it stands on, counted from 1
+        source.getLineAndCharacterOfPosition(first.start || 0).line + 1;
+      answer[file] = {                             // reported, never silently split
+        error: "syntax error on line " + where + ": "
+          + ts.flattenDiagnosticMessageText(first.messageText, " "),
+      };
+      continue;                                    // the rest are still answered
+    }
     const statements = [];                         // the boundaries collected here
     source.statements.forEach(function (statement) {   // only the top-level ones
       // getStart(source) skips comments and blank space before the statement
