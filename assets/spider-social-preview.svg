@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" role="img" aria-labelledby="title desc">
+  <title id="title">SPIDER Dead Code</title>
+  <desc id="desc">Statement-level dead-code evidence for AI coding agents</desc>
+  <defs>
+    <linearGradient id="bg" x1="80" y1="20" x2="1200" y2="620" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#151d38"/>
+      <stop offset=".58" stop-color="#0b1020"/>
+      <stop offset="1" stop-color="#080c18"/>
+    </linearGradient>
+    <linearGradient id="signal" x1="116" y1="128" x2="510" y2="516" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#50e3c2"/>
+      <stop offset=".52" stop-color="#6d5dfc"/>
+      <stop offset="1" stop-color="#c65cff"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <pattern id="grid" width="64" height="64" patternUnits="userSpaceOnUse">
+      <path d="M64 0H0v64" fill="none" stroke="#8996bd" stroke-opacity=".07"/>
+    </pattern>
+  </defs>
+  <rect width="1280" height="640" rx="36" fill="url(#bg)"/>
+  <rect width="1280" height="640" rx="36" fill="url(#grid)"/>
+  <circle cx="1122" cy="70" r="260" fill="#6d5dfc" opacity=".08"/>
+  <circle cx="1160" cy="590" r="220" fill="#50e3c2" opacity=".05"/>
+
+  <g transform="translate(72 92)">
+    <rect width="456" height="456" rx="104" fill="#0c1225" stroke="#93a0ca" stroke-opacity=".22" stroke-width="2"/>
+    <g fill="none" stroke="#7280a8" stroke-opacity=".25" stroke-width="3">
+      <path d="M58 137l84 46M398 137l-84 46M43 228h108M413 228H305M66 354l85-66M390 354l-85-66"/>
+    </g>
+    <g fill="#10182f" stroke="url(#signal)" stroke-width="8">
+      <circle cx="54" cy="134" r="16"/><circle cx="402" cy="134" r="16"/>
+      <circle cx="38" cy="228" r="16"/><circle cx="418" cy="228" r="16"/>
+      <circle cx="62" cy="360" r="16"/><circle cx="394" cy="360" r="16"/>
+    </g>
+    <g fill="none" stroke="url(#signal)" stroke-linecap="round" stroke-linejoin="round" stroke-width="17" filter="url(#glow)">
+      <path d="M181 188l-45-39-50-13M275 188l45-39 50-13"/>
+      <path d="M171 224h-54l-52 4M285 224h54l52 4"/>
+      <path d="m177 262-47 38-45 49M279 262l47 38 45 49"/>
+      <path d="m192 287-25 65-1 35M264 287l25 65 1 35"/>
+    </g>
+    <ellipse cx="228" cy="254" rx="61" ry="84" fill="url(#signal)"/>
+    <circle cx="228" cy="160" r="47" fill="#50e3c2"/>
+    <path d="M200 159h56" stroke="#0b1123" stroke-linecap="round" stroke-width="12"/>
+    <circle cx="214" cy="147" r="5" fill="#0b1123"/><circle cx="242" cy="147" r="5" fill="#0b1123"/>
+  </g>
+
+  <g font-family="Inter, Segoe UI, Arial, sans-serif">
+    <text x="594" y="184" fill="#50e3c2" font-size="25" font-weight="700" letter-spacing="5">DEAD CODE EVIDENCE</text>
+    <text x="588" y="305" fill="#ffffff" font-size="112" font-weight="800" letter-spacing="-4">SPIDER</text>
+    <text x="594" y="370" fill="#cbd3ec" font-size="32" font-weight="500">Statement-level reachability</text>
+    <text x="594" y="412" fill="#cbd3ec" font-size="32" font-weight="500">for AI coding agents.</text>
+    <g font-size="20" font-weight="650" fill="#e8ebfa">
+      <rect x="594" y="459" width="104" height="42" rx="21" fill="#1c2748"/><text x="618" y="487">Python</text>
+      <rect x="710" y="459" width="144" height="42" rx="21" fill="#1c2748"/><text x="731" y="487">TypeScript</text>
+      <rect x="866" y="459" width="134" height="42" rx="21" fill="#1c2748"/><text x="887" y="487">JavaScript</text>
+      <rect x="1012" y="459" width="76" height="42" rx="21" fill="#1c2748"/><text x="1030" y="487">CSS</text>
+      <rect x="1100" y="459" width="84" height="42" rx="21" fill="#1c2748"/><text x="1120" y="487">Shell</text>
+    </g>
+    <text x="594" y="553" fill="#7f8bad" font-size="20" font-weight="500">github.com/baytcho/spider-dead-code-skill</text>
+  </g>
+</svg>

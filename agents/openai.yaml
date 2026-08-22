@@ -1,0 +1,10 @@
+interface:
+  display_name: "SPIDER Dead Code"
+  short_description: "Trace dead-code candidates across the whole stack"
+  icon_small: "./assets/spider-mark.svg"
+  icon_large: "./assets/spider-mark.svg"
+  brand_color: "#0B1020"
+  default_prompt: "Use $spider to audit this repository for dead-code candidates and produce the evidence-backed review list."
+
+policy:
+  allow_implicit_invocation: true

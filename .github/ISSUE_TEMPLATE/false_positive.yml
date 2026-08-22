@@ -1,0 +1,61 @@
+name: Living code appears as a candidate
+description: Report a case where SPIDER's final list includes code the product needs
+title: "[False positive]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A false-positive case is especially valuable. Please reduce it to the smallest safe example that preserves the missing causal link.
+  - type: input
+    id: version
+    attributes:
+      label: SPIDER version
+      placeholder: 2.4.0
+    validations:
+      required: true
+  - type: input
+    id: address
+    attributes:
+      label: Candidate address
+      description: File and line range from the final report.
+      placeholder: app/example.ts:20-31
+    validations:
+      required: true
+  - type: textarea
+    id: why_live
+    attributes:
+      label: Why the product needs this statement
+      description: Describe the real entry, call, import, framework read, dynamic name or other causal path.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal source example
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Relevant SPIDER evidence
+      description: Candidate row, machine state, links, review excerpt and coverage line. Remove private data.
+    validations:
+      required: true
+  - type: input
+    id: stack
+    attributes:
+      label: Language and framework
+      placeholder: TypeScript / Next.js 16
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Safety check
+      options:
+        - label: I verified that the live file matches the report or described its drift.
+          required: true
+        - label: I removed private code, secrets and credentials.
+          required: true
