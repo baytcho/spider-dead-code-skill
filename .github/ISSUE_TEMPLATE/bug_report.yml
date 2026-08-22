@@ -1,0 +1,69 @@
+name: Bug report
+description: Report a reproducible failure in SPIDER or its scripts
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping improve SPIDER. Remove private code, secrets and credentials before posting.
+  - type: input
+    id: version
+    attributes:
+      label: SPIDER version
+      description: The version printed in the report or `scripts/version.py`.
+      placeholder: 2.4.0
+    validations:
+      required: true
+  - type: dropdown
+    id: stage
+    attributes:
+      label: Stage
+      options:
+        - Installation or discovery
+        - Step 1 — snapshot and statements
+        - Step 2 — entry points
+        - Step 3 — database
+        - Step 4 — machine links
+        - Step 5 — traversal
+        - Step 6 — review
+        - Step 7 — final list
+        - Evaluation suite
+        - Packaging
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Commands, smallest safe source example and exact sequence that reproduces the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour and complete error
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python, Node.js and Joern versions when relevant.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed private code, secrets and credentials.
+          required: true
+        - label: I searched existing issues for this problem.
+          required: true

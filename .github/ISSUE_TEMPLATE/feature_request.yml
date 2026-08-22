@@ -1,0 +1,39 @@
+name: Feature request
+description: Propose a focused extension to SPIDER's evidence model or workflow
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Describe the investigation failure or repeated manual work, not only the desired implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Concrete example
+      description: Show the smallest source pattern and expected evidence.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Effect on false positives and refusal checks
+      description: Explain how the proposal avoids declaring living code unused.
+    validations:
+      required: true
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: I checked the current README, SKILL.md and existing issues.
+          required: true
