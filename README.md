@@ -44,6 +44,12 @@ The open [`skills`](https://github.com/vercel-labs/skills) installer supports Co
 npx skills add baytcho/spider-dead-code-skill
 ```
 
+GitHub CLI 2.90.0 or newer provides a native alternative (currently in preview):
+
+```bash
+gh skill install baytcho/spider-dead-code-skill spider
+```
+
 Invoke SPIDER explicitly:
 
 ```text

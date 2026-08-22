@@ -43,6 +43,12 @@ AI агентите създават и заменят код бързо, но �
 npx skills add baytcho/spider-dead-code-skill
 ```
 
+GitHub CLI 2.90.0 или по-нова версия предлага и вграден начин за инсталиране (в момента предварителна версия):
+
+```bash
+gh skill install baytcho/spider-dead-code-skill spider
+```
+
 Изрично извикване на SPIDER:
 
 ```text

@@ -6,6 +6,12 @@ SPIDER follows the open [Agent Skills specification](https://agentskills.io/spec
 npx skills add baytcho/spider-dead-code-skill
 ```
 
+GitHub CLI 2.90.0 or newer also supports native Agent Skills installation (currently in preview):
+
+```bash
+gh skill install baytcho/spider-dead-code-skill spider
+```
+
 The installer detects supported coding agents and asks where to install the skill. The manual options below install the repository as a folder named `spider`; `SKILL.md` must sit directly inside that folder.
 
 ## Codex
